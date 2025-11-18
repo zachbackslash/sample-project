@@ -1,4 +1,4 @@
-name: CI Build and Backslash Security Scan
+name: CI Build and Backslash Security Scanning
 
 on:
   pull_request:
