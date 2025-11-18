@@ -1,23 +1,38 @@
 name: "CI | Backslash scan"
-
 on:
-  workflow_dispatch:
   pull_request:
-    branches:
-      - main
-
-env:
-  API_KEY: ${{ secrets.BACKSLASH_API_KEY }}
-  GITHUB_ACCESS_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Alternativley you can use a dedicated token
+    branches: [main]
 
 jobs:
-  backslash-scan:
-    name: Scaning
+  backslash_scan_job:
     runs-on: ubuntu-latest
+    name: Backslash scan
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        
+      # ADD DEBUG STEP HERE - before the Backslash scan
+      - name: Check secret is available
+        run: |
+          if [ -n "${{ secrets.BACKSLASH_API_KEY }}" ]; then
+            echo "✅ BACKSLASH_API_KEY is configured"
+          else
+            echo "❌ BACKSLASH_API_KEY is missing"
+          fi
+          
+          # Also check if it's being passed to the env correctly
+          if [ -n "${{ secrets.BACKSLASH_API_KEY }}" ]; then
+            echo "Secret length: ${#secret_value}"
+          fi
+        env:
+          secret_value: ${{ secrets.BACKSLASH_API_KEY }}
+        
       - name: Backslash scan step
+        id: bscan
         uses: backslash-security/scan-action@main
         with:
-          authToken: ${{ env.API_KEY }}
-          prScan: true
-          githubToken: ${{ env.GITHUB_ACCESS_TOKEN }} # Optional for PR comments
+          authToken: ${{ secrets.BACKSLASH_API_KEY }}
+          ignoreBlock: false
+          scanPr: true
+          disablePrComments: false
+          githubToken: ${{ secrets.GITHUB_TOKEN }}
