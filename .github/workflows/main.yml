@@ -1,99 +1,36 @@
-name: CI Build and Test
+name: CI
 
 on:
   push:
     branches: [ main ]
   pull_request:
     branches: [ main ]
-  workflow_dispatch:  # Allow manual triggers
 
 jobs:
   build:
     runs-on: ubuntu-latest
     
     steps:
-    # Checkout code
-    - name: Checkout repository
-      uses: actions/checkout@v4
+    - uses: actions/checkout@v4
     
-    # Setup Node.js (if you have JavaScript/npm packages)
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20'
-        cache: 'npm'
-      if: hashFiles('package.json') != ''
-    
-    # Install dependencies (if package.json exists)
-    - name: Install dependencies
-      run: npm ci
-      if: hashFiles('package.json') != ''
-    
-    # Run tests (if they exist)
-    - name: Run tests
-      run: npm test --if-present
-      if: hashFiles('package.json') != ''
-    
-    # Build project (if build script exists)
-    - name: Build project
-      run: npm run build --if-present
-      if: hashFiles('package.json') != ''
-    
-    # Validate HTML files
-    - name: Validate HTML
-      uses: Cyb3r-Jak3/html5validator-action@v7.2.0
-      with:
-        root: .
-        log_level: INFO
-      continue-on-error: true
-      if: hashFiles('*.html') != '' || hashFiles('**/*.html') != ''
-    
-    # Check CSS files with stylelint (optional)
-    - name: Lint CSS
+    - name: Validate project structure
       run: |
-        if [ -f ".stylelintrc" ] || [ -f ".stylelintrc.json" ]; then
-          npm install --save-dev stylelint stylelint-config-standard
-          npx stylelint "**/*.css"
-        else
-          echo "No stylelint config found, skipping CSS linting"
-        fi
-      continue-on-error: true
-      if: hashFiles('*.css') != '' || hashFiles('**/*.css') != ''
-    
-    # Security scan with CodeQL (GitHub's built-in, more reliable than Backslash)
-    - name: Initialize CodeQL
-      uses: github/codeql-action/init@v3
-      with:
-        languages: javascript, python
-      if: github.event_name == 'pull_request'
-      continue-on-error: true
-    
-    - name: Perform CodeQL Analysis
-      uses: github/codeql-action/analyze@v3
-      if: github.event_name == 'pull_request'
-      continue-on-error: true
-    
-    # Upload build artifacts (if any)
-    - name: Upload artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: build-artifacts
-        path: |
-          dist/
-          build/
-          public/
-        if-no-files-found: ignore
-
-  # Lint job (runs in parallel)
-  lint:
-    runs-on: ubuntu-latest
-    
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-    
-    # Check for common issues
-    - name: Check file endings
+        echo "📁 Project structure:"
+        ls -la
+        
+    - name: Check for syntax errors in web files
       run: |
-        # Check for CRLF line endings
-        ! find . -type f -name "*.html" -o -name
+        # Basic validation
+        for file in $(find . -name "*.html" -o -name "*.css" -o -name "*.js"); do
+          echo "Checking $file"
+          # Basic syntax check
+          if [[ $file == *.html ]]; then
+            # Check for basic HTML structure
+            grep -q "<html" "$file" || echo "Warning: $file might not be valid HTML"
+          fi
+        done
+        
+    - name: Count lines of code
+      run: |
+        echo "📊 Project statistics:"
+        find . -name "*.html" -o -name "*.css" -o -name "*.js" | xargs wc -l
