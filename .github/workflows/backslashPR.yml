@@ -1,38 +1,16 @@
-name: "CI | Backslash scan"
 on:
   pull_request:
-    branches: [main]
+    branches: [master]
 
 jobs:
   backslash_scan_job:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     name: Backslash scan
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-        
-      # ADD DEBUG STEP HERE - before the Backslash scan
-      - name: Check secret is available
-        run: |
-          if [ -n "${{ secrets.BACKSLASH_API_KEY }}" ]; then
-            echo "✅ BACKSLASH_API_KEY is configured"
-          else
-            echo "❌ BACKSLASH_API_KEY is missing"
-          fi
-          
-          # Also check if it's being passed to the env correctly
-          if [ -n "${{ secrets.BACKSLASH_API_KEY }}" ]; then
-            echo "Secret length: ${#secret_value}"
-          fi
-        env:
-          secret_value: ${{ secrets.BACKSLASH_API_KEY }}
-        
       - name: Backslash scan step
         id: bscan
         uses: backslash-security/scan-action@main
         with:
-          authToken: ${{ secrets.BACKSLASH_API_KEY }}
+          authToken: ${{ secrets.BACKSLASH_AUTH_TOKEN }}
           ignoreBlock: false
           prScan: true
-          disablePrComments: false
-          githubToken: ${{ secrets.GITHUB_TOKEN }}
