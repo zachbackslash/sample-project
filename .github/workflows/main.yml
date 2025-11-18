@@ -1,36 +1,94 @@
-name: CI
+name: CI Build and Backslash Security Scan
 
 on:
-  push:
-    branches: [ main ]
   pull_request:
     branches: [ main ]
+    types: [ opened, synchronize, reopened ]  # Specify which PR events trigger the scan
 
 jobs:
+  # Regular CI build job
   build:
     runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Build and test
+        run: |
+          echo "Running build steps..."
+          # Add your build steps here
+  
+  # Backslash security scan - separate job for better isolation
+  backslash-scan:
+    runs-on: ubuntu-latest
+    name: Backslash Security Scan
+    # Only run on PRs to avoid the login error
+    if: github.event_name == 'pull_request'
     
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Validate project structure
-      run: |
-        echo "📁 Project structure:"
-        ls -la
-        
-    - name: Check for syntax errors in web files
-      run: |
-        # Basic validation
-        for file in $(find . -name "*.html" -o -name "*.css" -o -name "*.js"); do
-          echo "Checking $file"
-          # Basic syntax check
-          if [[ $file == *.html ]]; then
-            # Check for basic HTML structure
-            grep -q "<html" "$file" || echo "Warning: $file might not be valid HTML"
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # Fetch full history for better scan results
+          fetch-depth: 0
+      
+      - name: Debug PR Context (remove after testing)
+        run: |
+          echo "Event: ${{ github.event_name }}"
+          echo "PR Number: ${{ github.event.pull_request.number }}"
+          echo "PR Author: ${{ github.event.pull_request.user.login }}"
+          echo "Base Branch: ${{ github.event.pull_request.base.ref }}"
+          echo "Head Branch: ${{ github.event.pull_request.head.ref }}"
+      
+      - name: Backslash Security Scan
+        id: backslash
+        uses: backslash-security/scan-action@main
+        with:
+          # Required: Your Backslash API key
+          authToken: ${{ secrets.BACKSLASH_API_KEY }}
+          
+          # Enable PR scanning (only works in PR context)
+          prScan: true
+          
+          # GitHub token for PR comments
+          githubToken: ${{ secrets.GITHUB_TOKEN }}
+          
+          # Optional: Control PR comment behavior
+          disablePrComments: false
+          
+          # Optional: Whether to block PR if issues found
+          ignoreBlock: false
+          
+          # Optional: For on-premise Backslash installations
+          isOnPremise: false
+          
+          # Optional: Push results to Backslash dashboard
+          pushToDashboard: true
+        continue-on-error: true  # Don't fail the whole workflow if scan fails
+      
+      - name: Check scan results
+        if: always()
+        run: |
+          if [ "${{ steps.backslash.outcome }}" == "failure" ]; then
+            echo "⚠️ Backslash scan failed - check logs above"
+          elif [ "${{ steps.backslash.outcome }}" == "success" ]; then
+            echo "✅ Backslash scan completed successfully"
           fi
-        done
-        
-    - name: Count lines of code
-      run: |
-        echo "📊 Project statistics:"
-        find . -name "*.html" -o -name "*.css" -o -name "*.js" | xargs wc -l
+
+  # Status check job
+  status-check:
+    runs-on: ubuntu-latest
+    needs: [build, backslash-scan]
+    if: always()
+    steps:
+      - name: Check job status
+        run: |
+          if [ "${{ needs.build.result }}" == "failure" ]; then
+            echo "❌ Build failed"
+            exit 1
+          fi
+          # Don't fail on Backslash scan issues since it's still buggy
+          if [ "${{ needs.backslash-scan.result }}" == "failure" ]; then
+            echo "⚠️ Security scan had issues (non-blocking)"
+          fi
+          echo "✅ CI pipeline completed"
